@@ -3,7 +3,9 @@ import binwalk.core.compat
 import binwalk.core.plugin
 from binwalk.core.common import BlockFile
 
+
 class GzipValidPlugin(binwalk.core.plugin.Plugin):
+
     '''
     Validates gzip compressed data. Almost identical to zlibvalid.py.
     '''
@@ -40,8 +42,7 @@ class GzipValidPlugin(binwalk.core.plugin.Plugin):
             except zlib.error as e:
                 error = str(e)
                 # Truncated input data results in error -5.
-                # gzip uses different checksums than zlib, which results in error -3.
+                # gzip uses different checksums than zlib, which results in
+                # error -3.
                 if not error.startswith("Error -5") and not error.startswith("Error -3"):
                     result.valid = False
-
-

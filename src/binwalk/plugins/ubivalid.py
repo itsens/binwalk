@@ -1,16 +1,18 @@
 import struct
 import binascii
 import binwalk.core.plugin
+import binwalk.core.compat
 
 
 class UBIValidPlugin(binwalk.core.plugin.Plugin):
+
     '''
     Helps validate UBI erase count signature results.
 
     Checks header CRC and calculates jump value
     '''
     MODULES = ['Signature']
-    current_file=None
+    current_file = None
     last_ec_hdr_offset = None
     peb_size = None
 
@@ -26,15 +28,15 @@ class UBIValidPlugin(binwalk.core.plugin.Plugin):
 
     def _process_result(self, result):
         if self.current_file == result.file.name:
-            result.display=False
+            result.display = False
         else:
             # Reset everything in case new file is encountered
-            self.peb_size=None
-            self.last_ec_hdr_offset=None
-            self.peb_size=None
+            self.peb_size = None
+            self.last_ec_hdr_offset = None
+            self.peb_size = None
 
             # Display result and trigger extraction
-            result.display=True
+            result.display = True
 
         self.current_file = result.file.name
 
@@ -56,7 +58,7 @@ class UBIValidPlugin(binwalk.core.plugin.Plugin):
             # Seek to and read the suspected UBI erase count header
             fd = self.module.config.open_file(result.file.name, offset=result.offset)
 
-            ec_header = fd.read(1024)
+            ec_header = binwalk.core.compat.str2bytes(fd.read(1024))
             fd.close()
 
             result.valid = self._check_crc(ec_header[0:64])

@@ -1,4 +1,5 @@
-# Module to process general user input options (scan length, starting offset, etc).
+# Module to process general user input options (scan length, starting
+# offset, etc).
 
 import io
 import os
@@ -12,6 +13,7 @@ import binwalk.core.settings
 from binwalk.core.compat import *
 from binwalk.core.module import Module, Option, Kwarg, show_help
 
+
 class General(Module):
 
     TITLE = "General"
@@ -23,72 +25,77 @@ class General(Module):
         Option(long='length',
                short='l',
                type=int,
-               kwargs={'length' : 0},
+               kwargs={'length': 0},
                description='Number of bytes to scan'),
         Option(long='offset',
                short='o',
                type=int,
-               kwargs={'offset' : 0},
+               kwargs={'offset': 0},
                description='Start scan at this file offset'),
         Option(long='base',
                short='O',
                type=int,
-               kwargs={'base' : 0},
+               kwargs={'base': 0},
                description='Add a base address to all printed offsets'),
         Option(long='block',
                short='K',
                type=int,
-               kwargs={'block' : 0},
+               kwargs={'block': 0},
                description='Set file block size'),
         Option(long='swap',
                short='g',
                type=int,
-               kwargs={'swap_size' : 0},
+               kwargs={'swap_size': 0},
                description='Reverse every n bytes before scanning'),
         Option(long='log',
                short='f',
                type=argparse.FileType,
-               kwargs={'log_file' : None},
+               kwargs={'log_file': None},
                description='Log results to file'),
         Option(long='csv',
                short='c',
-               kwargs={'csv' : True},
+               kwargs={'csv': True},
                description='Log results to file in CSV format'),
         Option(long='term',
                short='t',
-               kwargs={'format_to_terminal' : True},
+               kwargs={'format_to_terminal': True},
                description='Format output to fit the terminal window'),
         Option(long='quiet',
                short='q',
-               kwargs={'quiet' : True},
+               kwargs={'quiet': True},
                description='Suppress output to stdout'),
         Option(long='verbose',
                short='v',
-               kwargs={'verbose' : True},
+               kwargs={'verbose': True},
                description='Enable verbose output'),
         Option(short='h',
                long='help',
-               kwargs={'show_help' : True},
+               kwargs={'show_help': True},
                description='Show help output'),
         Option(short='a',
                long='finclude',
                type=str,
-               kwargs={'file_name_include_regex' : ""},
+               kwargs={'file_name_include_regex': ""},
                description='Only scan files whose names match this regex'),
         Option(short='p',
                long='fexclude',
                type=str,
-               kwargs={'file_name_exclude_regex' : ""},
+               kwargs={'file_name_exclude_regex': ""},
                description='Do not scan files whose names match this regex'),
+        Option(short='s',
+               long='status',
+               type=int,
+               kwargs={'status_server_port': 0},
+               description='Enable the status server on the specified port'),
         Option(long=None,
                short=None,
                type=binwalk.core.common.BlockFile,
-               kwargs={'files' : []}),
+               kwargs={'files': []}),
 
         # Hidden, API-only arguments
         Option(long="string",
                hidden=True,
-               kwargs={'subclass' : binwalk.core.common.StringFile}),
+               kwargs={'subclass': binwalk.core.common.StringFile}),
     ]
 
     KWARGS = [
@@ -96,6 +103,7 @@ class General(Module):
         Kwarg(name='offset', default=0),
         Kwarg(name='base', default=0),
         Kwarg(name='block', default=0),
+        Kwarg(name='status_server_port', default=0),
         Kwarg(name='swap_size', default=0),
         Kwarg(name='log_file', default=None),
         Kwarg(name='csv', default=False),
@@ -113,6 +121,7 @@ class General(Module):
     PRIMARY = False
 
     def load(self):
+        self.threads_active = False
         self.target_files = []
 
         # A special case for when we're loaded into IDA
@@ -141,6 +150,9 @@ class General(Module):
             if not binwalk.core.idb.LOADED_IN_IDA:
                 sys.exit(0)
 
+        if self.status_server_port > 0:
+            self.parent.status_server(self.status_server_port)
+
     def reset(self):
         pass
 
@@ -150,7 +162,8 @@ class General(Module):
         Must be called after self._test_target_files so that self.target_files is properly set.
         '''
         # If more than one target file was specified, enable verbose mode; else, there is
-        # nothing in some outputs to indicate which scan corresponds to which file.
+        # nothing in some outputs to indicate which scan corresponds to which
+        # file.
         if len(self.target_files) > 1 and not self.verbose:
             self.verbose = True
 
@@ -181,7 +194,13 @@ class General(Module):
         if swap is None:
             swap = self.swap_size
 
-        return binwalk.core.common.BlockFile(fname, subclass=self.subclass, length=length, offset=offset, swap=swap, block=block, peek=peek)
+        return binwalk.core.common.BlockFile(fname,
+                                             subclass=self.subclass,
+                                             length=length,
+                                             offset=offset,
+                                             swap=swap,
+                                             block=block,
+                                             peek=peek)
 
     def _open_target_files(self):
         '''
@@ -201,4 +220,3 @@ class General(Module):
                     raise e
                 except Exception as e:
                     self.error(description="Cannot open file : %s" % str(e))
-

@@ -2,7 +2,9 @@ import binwalk.core.plugin
 import binwalk.core.compat
 from binwalk.core.common import BlockFile
 
+
 class LZMAPlugin(binwalk.core.plugin.Plugin):
+
     '''
     Validates lzma signature results.
     '''
@@ -17,7 +19,10 @@ class LZMAPlugin(binwalk.core.plugin.Plugin):
 
     def init(self):
         try:
-            import lzma
+            try:
+                import lzma
+            except ImportError:
+                from backports import lzma
             self.decompressor = lzma.decompress
         except ImportError as e:
             self.decompressor = None
@@ -26,7 +31,8 @@ class LZMAPlugin(binwalk.core.plugin.Plugin):
         valid = True
 
         if self.decompressor is not None:
-            # The only acceptable exceptions are those indicating that the input data was truncated.
+            # The only acceptable exceptions are those indicating that the
+            # input data was truncated.
             try:
                 self.decompressor(binwalk.core.compat.str2bytes(data))
             except IOError as e:
@@ -56,4 +62,3 @@ class LZMAPlugin(binwalk.core.plugin.Plugin):
                 data = data[:5] + self.FAKE_LZMA_SIZE + data[5:]
                 if not self.is_valid_lzma(data):
                     result.valid = False
-

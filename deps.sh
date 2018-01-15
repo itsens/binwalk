@@ -1,14 +1,53 @@
 #!/bin/bash
 
+# Check for the --yes command line argument to skip yes/no prompts
+if [ "$1" = "--yes" ]
+then
+    YES=1
+else
+    YES=0
+fi
+
+set -o nounset
+
+if ! which lsb_release > /dev/null
+then
+    function lsb_release {
+        if [ -f /etc/lsb-release ]
+        then
+            cat /etc/lsb-release | grep DISTRIB_ID | cut -d= -f 2
+        else
+            echo Unknown
+        fi
+    }
+fi
+
+if [ $YES -eq 0 ]
+then
+    distro="${1:-$(lsb_release -i|cut -f 2)}"
+    distro_version="${1:-$(lsb_release -r|cut -f 2|cut -c1-2)}"
+else
+    distro="${2:-$(lsb_release -i|cut -f 2)}"
+    distro_version="${2:-$(lsb_release -r|cut -f 2|cut -c1-2)}"
+fi
 REQUIRED_UTILS="wget tar python"
-APTCMD="apt-get"
+APTCMD="apt"
+APTGETCMD="apt-get"
 YUMCMD="yum"
-APT_CANDIDATES="git build-essential libqt4-opengl mtd-utils gzip bzip2 tar arj lhasa p7zip p7zip-full cabextract cramfsprogs cramfsswap squashfs-tools zlib1g-dev liblzma-dev liblzo2-dev"
-PYTHON2_APT_CANDIDATES="python-lzma python-pip python-opengl python-qt4 python-qt4-gl python-numpy python-scipy"
-PYTHON3_APT_CANDIDATES="python3-pip python3-opengl python3-pyqt4 python3-pyqt4.qtopengl python3-numpy python3-scipy"
+if [ $distro = "Kali" ]
+then
+    APT_CANDIDATES="git build-essential libqt4-opengl mtd-utils gzip bzip2 tar arj lhasa p7zip p7zip-full cabextract util-linux firmware-mod-kit cramfsswap squashfs-tools zlib1g-dev liblzma-dev liblzo2-dev sleuthkit default-jdk lzop cpio"
+elif [ $distro_version = "17" ]
+then
+    APT_CANDIDATES="git build-essential libqt4-opengl mtd-utils gzip bzip2 tar arj lhasa p7zip p7zip-full cabextract cramfsswap squashfs-tools zlib1g-dev liblzma-dev liblzo2-dev sleuthkit default-jdk lzop srecord cpio"
+else
+    APT_CANDIDATES="git build-essential libqt4-opengl mtd-utils gzip bzip2 tar arj lhasa p7zip p7zip-full cabextract cramfsprogs cramfsswap squashfs-tools zlib1g-dev liblzma-dev liblzo2-dev sleuthkit default-jdk lzop srecord cpio"
+fi
+PYTHON2_APT_CANDIDATES="python-crypto python-lzo python-lzma python-pip python-tk"
+PYTHON3_APT_CANDIDATES="python3-crypto python3-pip python3-tk"
 PYTHON3_YUM_CANDIDATES=""
-YUM_CANDIDATES="git gcc gcc-c++ make openssl-devel qtwebkit-devel qt-devel gzip bzip2 tar arj p7zip p7zip-plugins cabextract squashfs-tools zlib zlib-devel lzo lzo-devel xz xz-compat-libs xz-libs xz-devel xz-lzma-compat python-backports-lzma lzip pyliblzma perl-Compress-Raw-Lzma"
-PYTHON2_YUM_CANDIDATES="python-pip python-opengl python-qt4 numpy python-numdisplay numpy-2f python-Bottleneck scipy"
+YUM_CANDIDATES="git gcc gcc-c++ make openssl-devel qtwebkit-devel qt-devel gzip bzip2 tar arj p7zip p7zip-plugins cabextract squashfs-tools zlib zlib-devel lzo lzo-devel xz xz-compat-libs xz-libs xz-devel xz-lzma-compat python-backports-lzma lzip pyliblzma perl-Compress-Raw-Lzma lzop srecord"
+PYTHON2_YUM_CANDIDATES="python-pip python-Bottleneck cpio"
 APT_CANDIDATES="$APT_CANDIDATES $PYTHON2_APT_CANDIDATES"
 YUM_CANDIDATES="$YUM_CANDIDATES $PYTHON2_YUM_CANDIDATES"
 PIP_COMMANDS="pip"
@@ -22,16 +61,23 @@ else
     REQUIRED_UTILS="sudo $REQUIRED_UTILS"
 fi
 
+function install_yaffshiv
+{
+    git clone https://github.com/devttys0/yaffshiv
+    (cd yaffshiv && $SUDO python2 setup.py install)
+    $SUDO rm -rf yaffshiv
+}
+
 function install_sasquatch
 {
     git clone https://github.com/devttys0/sasquatch
-    (cd sasquatch && make && $SUDO make install)
+    (cd sasquatch && $SUDO ./build.sh)
     $SUDO rm -rf sasquatch
 }
 
 function install_jefferson
 {
-    $SUDO pip install cstruct
+    install_pip_package "cstruct==1.0"
     git clone https://github.com/sviehb/jefferson
     (cd jefferson && $SUDO python2 setup.py install)
     $SUDO rm -rf jefferson
@@ -45,6 +91,16 @@ function install_unstuff
     $SUDO cp bin/unstuff /usr/local/bin/
     cd -
     rm -rf /tmp/unstuff
+}
+
+function install_ubireader
+{
+    git clone https://github.com/jrspruitt/ubi_reader
+    # Some UBIFS extraction breaks after this commit, due to "Added fatal error check if UBI block extends beyond file size"
+    # (see this commit: https://github.com/jrspruitt/ubi_reader/commit/af678a5234dc891e8721ec985b1a6e74c77620b6)
+    # Reset to a known working commit.
+    (cd ubi_reader && git reset --hard 0955e6b95f07d849a182125919a1f2b6790d5b51 && $SUDO python setup.py install)
+    $SUDO rm -rf ubi_reader
 }
 
 function install_pip_package
@@ -74,19 +130,34 @@ function find_path
 }
 
 # Make sure the user really wants to do this
-echo ""
-echo "WARNING: This script will download and install all required and optional dependencies for binwalk."
-echo "         This script has only been tested on, and is only intended for, Debian based systems."
-echo "         Some dependencies are downloaded via unsecure (HTTP) protocols."
-echo "         This script requires internet access."
-echo "         This script requires root privileges."
-echo ""
-echo -n "Continue [y/N]? "
-read YN
-if [ "$(echo "$YN" | grep -i -e 'y' -e 'yes')" == "" ]
+if [ $YES -eq 0 ]
 then
-    echo "Quitting..."
-    exit 1
+    echo ""
+    echo "WARNING: This script will download and install all required and optional dependencies for binwalk."
+    echo "         This script has only been tested on, and is only intended for, Debian based systems."
+    echo "         Some dependencies are downloaded via unsecure (HTTP) protocols."
+    echo "         This script requires internet access."
+    echo "         This script requires root privileges."
+    echo ""
+    if [ $distro != Unknown ]
+    then
+        echo "         $distro $distro_version detected"
+    else
+        echo "WARNING: Distro not detected, using package-manager defaults"
+    fi
+    echo ""
+    echo -n "Continue [y/N]? "
+    read YN
+    if [ "$(echo "$YN" | grep -i -e 'y' -e 'yes')" == "" ]
+    then
+        echo "Quitting..."
+        exit 1
+    fi
+elif [ $distro != Unknown ]
+then
+     echo "$distro $distro_version detected"
+else
+    echo "WARNING: Distro not detected, using package-manager defaults"
 fi
 
 # Check to make sure we have all the required utilities installed
@@ -104,21 +175,38 @@ done
 find_path $APTCMD
 if [ $? -eq 1 ]
 then
-    find_path $YUMCMD
+    find_path $APTGETCMD
     if [ $? -eq 1 ]
     then
-        NEEDED_UTILS="$NEEDED_UTILS $APTCMD/$YUMCMD"
+        find_path $YUMCMD
+        if [ $? -eq 1 ]
+        then
+            NEEDED_UTILS="$NEEDED_UTILS $APTCMD/$APTGETCMD/$YUMCMD"
+        else
+            PKGCMD="$YUMCMD"
+            PKGCMD_OPTS="-y install"
+            PKG_CANDIDATES="$YUM_CANDIDATES"
+            PKG_PYTHON3_CANDIDATES="$PYTHON3_YUM_CANDIDATES"
+        fi
     else
-        PKGCMD="$YUMCMD"
-        PKGCMD_OPTS="-y install"
-        PKG_CANDIDATES="$YUM_CANDIDATES"
-        PKG_PYTHON3_CANDIDATES="$PYTHON3_YUM_CANDIDATES"
+        PKGCMD="$APTGETCMD"
+        PKGCMD_OPTS="install -y"
+        PKG_CANDIDATES="$APT_CANDIDATES"
+        PKG_PYTHON3_CANDIDATES="$PYTHON3_APT_CANDIDATES"
     fi
 else
-    PKGCMD="$APTCMD"
-    PKGCMD_OPTS="install -y"
-    PKG_CANDIDATES="$APT_CANDIDATES"
-    PKG_PYTHON3_CANDIDATES="$PYTHON3_APT_CANDIDATES"
+    if "$APTCMD" install -s -y dpkg > /dev/null
+    then
+        PKGCMD="$APTCMD"
+        PKGCMD_OPTS="install -y"
+        PKG_CANDIDATES="$APT_CANDIDATES"
+        PKG_PYTHON3_CANDIDATES="$PYTHON3_APT_CANDIDATES"
+    else
+        PKGCMD="$APTGETCMD"
+        PKGCMD_OPTS="install -y"
+        PKG_CANDIDATES="$APT_CANDIDATES"
+        PKG_PYTHON3_CANDIDATES="$PYTHON3_APT_CANDIDATES"
+    fi
 fi
 
 if [ "$NEEDED_UTILS" != "" ]
@@ -137,10 +225,17 @@ fi
 
 # Do the install(s)
 cd /tmp
-sudo $PKGCMD $PKGCMD_OPTS $PKG_CANDIDTES
-install_pip_package pyqtgraph
+$SUDO $PKGCMD $PKGCMD_OPTS $PKG_CANDIDATES
+if [ $? -ne 0 ]
+    then
+    echo "Package installation failed: $PKG_CANDIDATES"
+    exit 1
+fi
+install_pip_package matplotlib
 install_pip_package capstone
 install_sasquatch
+install_yaffshiv
 install_jefferson
 install_unstuff
+install_ubireader
 

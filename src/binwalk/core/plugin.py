@@ -7,13 +7,17 @@ import inspect
 import binwalk.core.common
 import binwalk.core.settings
 from binwalk.core.compat import *
+from binwalk.core.exceptions import IgnoreFileException
+
 
 class Plugin(object):
+
     '''
     Class from which all plugin classes are based.
     '''
     # A list of case-sensitive module names for which this plugin should be loaded.
-    # If no module names are specified, the plugin will be loaded for all modules.
+    # If no module names are specified, the plugin will be loaded for all
+    # modules.
     MODULES = []
 
     def __init__(self, module):
@@ -63,7 +67,9 @@ class Plugin(object):
         '''
         pass
 
+
 class Plugins(object):
+
     '''
     Class to load and call plugin callback functions, handled automatically by Binwalk.scan / Binwalk.single_scan.
     An instance of this class is available during a scan via the Binwalk.plugins object.
@@ -80,6 +86,7 @@ class Plugins(object):
 
     SCAN = 'scan'
     NEWFILE = 'new_file'
+    LOADFILE = 'load_file'
     PRESCAN = 'pre_scan'
     POSTSCAN = 'post_scan'
     MODULE_EXTENSION = '.py'
@@ -88,6 +95,7 @@ class Plugins(object):
         self.scan = []
         self.pre_scan = []
         self.new_file = []
+        self.load_file = []
         self.post_scan = []
         self.parent = parent
         self.settings = binwalk.core.settings.Settings()
@@ -107,6 +115,8 @@ class Plugins(object):
                     if obj is not None:
                         callback(obj)
             except KeyboardInterrupt as e:
+                raise e
+            except IgnoreFileException as e:
                 raise e
             except Exception as e:
                 binwalk.core.common.warning("%s.%s failed: %s" % (callback.__module__, callback.__name__, e))
@@ -140,17 +150,17 @@ class Plugins(object):
         '''
 
         plugins = {
-            'user'   : {
-                    'modules'       : [],
-                    'descriptions'  : {},
-                    'enabled'       : {},
-                    'path'          : None,
+            'user': {
+                'modules': [],
+                'descriptions': {},
+                'enabled': {},
+                'path': None,
             },
-            'system' : {
-                    'modules'       : [],
-                    'descriptions'  : {},
-                    'enabled'       : {},
-                    'path'          : None,
+            'system': {
+                'modules': [],
+                'descriptions': {},
+                'enabled': {},
+                'path': None,
             }
         }
 
@@ -173,16 +183,24 @@ class Plugins(object):
                             plugins[key]['modules'].append(module)
                         except KeyboardInterrupt as e:
                             raise e
+                        # Python files in the plugins directory that are not
+                        # actually binwalk plugins will generate a TypeError
+                        # about converting an object to a string implicitly.
+                        # Don't need to warn about these.
+                        except TypeError:
+                            pass
                         except Exception as e:
                             binwalk.core.common.warning("Error loading plugin '%s': %s" % (file_name, str(e)))
                             plugins[key]['enabled'][module] = False
 
                         try:
-                            plugins[key]['descriptions'][module] = plugin_class.__doc__.strip().split('\n')[0]
+                            plugins[key]['descriptions'][
+                                module] = plugin_class.__doc__.strip().split('\n')[0]
                         except KeyboardInterrupt as e:
                             raise e
                         except Exception as e:
-                            plugins[key]['descriptions'][module] = 'No description'
+                            plugins[key]['descriptions'][
+                                module] = 'No description'
         return plugins
 
     def load_plugins(self):
@@ -209,6 +227,13 @@ class Plugins(object):
 
                 try:
                     self.scan.append(getattr(class_instance, self.SCAN))
+                except KeyboardInterrupt as e:
+                    raise e
+                except Exception as e:
+                    pass
+
+                try:
+                    self.load_file.append(getattr(class_instance, self.LOADFILE))
                 except KeyboardInterrupt as e:
                     raise e
                 except Exception as e:
@@ -243,6 +268,9 @@ class Plugins(object):
     def pre_scan_callbacks(self, obj):
         return self._call_plugins(self.pre_scan)
 
+    def load_file_callbacks(self, fp):
+        return self._call_plugins(self.load_file, fp)
+
     def new_file_callbacks(self, fp):
         return self._call_plugins(self.new_file, fp)
 
@@ -251,4 +279,3 @@ class Plugins(object):
 
     def scan_callbacks(self, obj):
         return self._call_plugins(self.scan, obj)
-

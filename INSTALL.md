@@ -31,6 +31,24 @@ Although all binwalk run-time dependencies are optional, the `python-lzma` modul
 $ sudo apt-get install python-lzma
 ```
 
+Binwalk uses the `nosetest` library for tests and `coverage` for test-coverage:
+
+```bash
+$ sudo pip install nose coverage
+```
+
+Binwalk uses the `pycrypto` library to decrypt some known encrypted firmware images:
+
+```bash
+# Python2.7
+$ sudo apt-get install python-crypto
+```
+
+```bash
+# Python3.x
+$ sudo apt-get install python3-crypto
+```
+
 Binwalk uses [pyqtgraph](http://www.pyqtgraph.org) to generate graphs and visualizations, which requires the following: 
 
 ```bash
@@ -63,14 +81,14 @@ Binwalk relies on multiple external utilties in order to automatically extract/d
 
 ```bash
 # Install standard extraction utilities
-$ sudo apt-get install mtd-utils gzip bzip2 tar arj lhasa p7zip p7zip-full cabextract cramfsprogs cramfsswap squashfs-tools
+$ sudo apt-get install mtd-utils gzip bzip2 tar arj lhasa p7zip p7zip-full cabextract cramfsprogs cramfsswap squashfs-tools sleuthkit default-jdk lzop srecord
 ```
 
 ```bash
 # Install sasquatch to extract non-standard SquashFS images
 $ sudo apt-get install zlib1g-dev liblzma-dev liblzo2-dev
 $ git clone https://github.com/devttys0/sasquatch
-$ (cd sasquatch && make && sudo make install)
+$ (cd sasquatch && ./build.sh)
 ```
 
 ```bash
@@ -85,6 +103,12 @@ $ (cd jefferson && sudo python setup.py install)
 $ sudo apt-get install liblzo2-dev python-lzo
 $ git clone https://github.com/jrspruitt/ubi_reader
 $ (cd ubi_reader && sudo python setup.py install)
+```
+
+```bash
+# Install yaffshiv to extract YAFFS file systems
+$ git clone https://github.com/devttys0/yaffshiv
+$ (cd yaffshiv && sudo python setup.py install)
 ```
 
 ```bash

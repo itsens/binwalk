@@ -2,7 +2,9 @@ import struct
 import binascii
 import binwalk.core.plugin
 
+
 class JFFS2ValidPlugin(binwalk.core.plugin.Plugin):
+
     '''
     Helps validate JFFS2 signature results.
 
@@ -38,10 +40,8 @@ class JFFS2ValidPlugin(binwalk.core.plugin.Plugin):
             # hits (disk caching?).
             #
             # TODO: Should this plugin validate the *entire* JFFS2 file system, rather
-            #       than letting the signature module find every single JFFS2 node?
+            # than letting the signature module find every single JFFS2 node?
             node_header = fd.read(1024)
             fd.close()
 
             result.valid = self._check_crc(node_header[0:12])
-
-
